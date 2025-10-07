@@ -1,4 +1,4 @@
-name: Build and Push to Google Artifact Registry
+name: Build, Push, and Deploy
 
 on:
   push:
@@ -6,11 +6,11 @@ on:
 
 jobs:
   build:
+    runs-on: ubuntu-latest
     permissions:
       contents: 'read'
       id-token: 'write'
 
-    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -33,3 +33,23 @@ jobs:
           context: .
           push: true
           tags: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-images/gcp-service-template:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the Ansible configuration repository
+      - name: Checkout ansible config repo
+        uses: actions/checkout@v4
+        with:
+          repository: mfcarroll/gcp-server-config
+          token: ${{ secrets.GH_PAT }} # Use a PAT to access the private repo
+
+      # Run the Ansible playbook
+      - name: Run Ansible Playbook
+        uses: dawidd6/action-ansible-playbook@v2
+        with:
+          playbook: playbook.yml
+          inventory: inventory
+          key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
