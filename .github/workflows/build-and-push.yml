@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "main" ]
 
+env:
+  # Define the hostname here to reuse it in multiple jobs
+  HOSTNAME: template.apps.matthewcarroll.ca
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,8 +38,59 @@ jobs:
           push: true
           tags: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-images/gcp-service-template:latest
 
-  deploy:
+  provision-hostname:
+    runs-on: ubuntu-latest
+    # This job runs after the build is successful
     needs: build
+    outputs:
+      # We'll output a status to ensure this job finishes before deploying
+      status: ${{ steps.check_hostname.outcome }}
+    steps:
+      - name: Check if Custom Hostname exists
+        id: check_hostname
+        run: |
+          # Use the Cloudflare API to list hostnames and filter by our desired hostname
+          response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames?hostname=${{ env.HOSTNAME }}" \
+            -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+
+          # Check if the result array is empty
+          if [ "$(echo $response | jq '.result | length')" -eq 0 ]; then
+            echo "Hostname does not exist. Will create it."
+            echo "exists=false" >> $GITHUB_ENV
+          else
+            echo "Hostname already exists."
+            echo "exists=true" >> $GITHUB_ENV
+          fi
+
+      - name: Create Custom Hostname if it does not exist
+        if: env.exists == 'false'
+        id: create_hostname
+        run: |
+          # Call the API to create the custom hostname
+          response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames" \
+            -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"hostname":"${{ env.HOSTNAME }}","ssl":{"method":"txt","type":"dv"}}')
+
+          # Extract the validation record details from the response
+          echo "validation_name=$(echo $response | jq -r '.result.ownership_verification.name')" >> $GITHUB_ENV
+          echo "validation_value=$(echo $response | jq -r '.result.ownership_verification.value')" >> $GITHUB_ENV
+
+      - name: Create DNS record for validation
+        if: steps.create_hostname.outcome == 'success'
+        run: |
+          # Call the API to create the necessary TXT record for validation
+          curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+            -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"type":"TXT","name":"'"${{ env.validation_name }}"'","content":"'"${{ env.validation_value }}"'","ttl":3600}'
+
+  deploy:
+    needs: provision-hostname
     runs-on: ubuntu-latest
 
     steps:
