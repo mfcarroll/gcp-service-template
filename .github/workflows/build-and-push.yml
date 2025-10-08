@@ -108,3 +108,4 @@ jobs:
           playbook: playbook.yml
           inventory: inventory
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          vault_password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
