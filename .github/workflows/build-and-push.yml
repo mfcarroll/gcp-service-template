@@ -151,6 +151,7 @@ jobs:
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
           source: "${{ env.APPNAME }}.yml"
           target: "/home/dev/"
+          overwrite: true
 
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
