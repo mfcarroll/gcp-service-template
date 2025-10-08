@@ -140,18 +140,20 @@ jobs:
     steps:
       - name: Checkout service repo
         uses: actions/checkout@v4
+
       - name: Generate compose.yml from template
         run: sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > ${{ env.APPNAME }}.yml
 
-      - name: Copy compose config to server
-        uses: appleboy/scp-action@master
-        with:
-          host: 35.208.204.183
-          username: dev
-          key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
-          source: "${{ env.APPNAME }}.yml"
-          target: "/home/dev/"
-          overwrite: true
+      - name: Copy compose config to server using native scp
+        run: |
+          # 1. Save the private key to a file
+          echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > deploy_key
+          chmod 600 deploy_key
+
+          # 2. Use the native scp command
+          scp -o StrictHostKeyChecking=no -i ./deploy_key \
+            ${{ env.APPNAME }}.yml \
+            dev@35.208.204.183:/home/dev/
 
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
@@ -162,15 +164,9 @@ jobs:
 
       - name: Install Ansible and Run Playbook
         run: |
-          # 1. Install Ansible (Standard Python method)
           python3 -m pip install ansible
-
-          # 2. Save SSH key to a temporary file
           echo "${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}" > ansible_ssh_key
           chmod 600 ansible_ssh_key
-
-          # 3. Execute Ansible Playbook directly.
-          # FIX 3: Override the key path variable set in your checked-out inventory file.
           ansible-playbook \
             -i ./ansible-config/inventory \
             ./ansible-config/playbook.yml \
