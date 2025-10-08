@@ -109,14 +109,37 @@ jobs:
     needs: provision-hostname
     runs-on: ubuntu-latest
     steps:
+      # --- NEW STEP ---
+      # Step 1: Check out the current (gcp-service-template) repository
+      - name: Checkout service repo
+        uses: actions/checkout@v4
+
+      # --- NEW STEP ---
+      # Step 2: Use SCP to copy the compose.yml file to the server
+      - name: Copy compose config to server
+        uses: appleboy/scp-action@master
+        with:
+          host: 35.208.204.183
+          username: dev
+          key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          source: "compose.yml"
+          # The destination uses the repo name to ensure a unique filename
+          target: "/opt/docker/services/${{ github.event.repository.name }}.yml"
+
+      # Step 3: Check out the Ansible config repo (as before)
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
         with:
           repository: mfcarroll/gcp-server-config
           token: ${{ secrets.GH_PAT }}
+          path: ansible-config # Check it out into a subdirectory
+
+      # Step 4: Run the Ansible Playbook (now from the subdirectory)
       - name: Run Ansible Playbook
         uses: dawidd6/action-ansible-playbook@v2
         with:
+          # Tell the action where the playbook is
+          directory: ansible-config
           playbook: playbook.yml
           inventory: inventory
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
