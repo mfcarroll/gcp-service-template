@@ -1,48 +1,48 @@
 # GCP Service Template
 
-This repository is a template for creating and deploying a containerized web application to the GCP server infrastructure. It is designed to be a self-contained unit, managing its own deployment configuration and network provisioning through a fully automated CI/CD pipeline.
+This repository is a template for creating and deploying a containerized web application to the GCP server infrastructure. It includes a sample web page and a fully automated CI/CD pipeline using GitHub Actions.
 
 The pipeline will:
 1.  **Build** the application into a Docker image.
 2.  **Push** the image to a private Google Artifact Registry.
-3.  **Provision** a public-facing hostname in Cloudflare for the app, including the necessary SSL certificates.
-4.  **Deploy** the application by copying its configuration to the server and triggering a central Ansible playbook.
-
-## Repository Structure
-
-* **`.github/workflows/build-and-push.yml`**: The core CI/CD pipeline. **This is the main file you will edit.**
-* **`compose.yml.template`**: A template for the application's Docker Compose configuration. This is generated into the final `compose.yml` by the pipeline.
-* **`Dockerfile`**: Instructions for building the application into a Docker image.
-* **`index.html`**: The sample application code. Replace this with your own.
-
----
+3.  **Provision** a public-facing hostname in Cloudflare for the app.
+4.  **Deploy** the application to the server by triggering an Ansible playbook.
 
 ## How to Use This Template for a New App
 
-Follow these steps to create and deploy a new application. The key principle is that you only need to make changes within your new application's repository.
+Follow these steps to create and deploy a new application based on this template.
 
 ### Step 1: Create the New Repository
 
-1.  Create a new repository on GitHub using this one as a template.
+1.  Create a new repository on GitHub by using this one as a template.
 2.  Clone the new repository to your local machine.
 
-### Step 2: Configure Your New Application
+### Step 2: Grant GitHub Actions Access to GCP
 
-You only need to define your application's name in **one place**.
+**This is a mandatory one-time setup step for each new repository.** The CI/CD pipeline uses GCP's Workload Identity Federation to securely access your cloud resources without needing a static secret key. You must authorize your new repository to use this identity.
 
-1.  **Update the CI/CD Workflow (`.github/workflows/build-and-push.yml`):**
-    * Open this file and change the `APPNAME` environment variable to the desired name for your new application (e.g., `my-cool-app`). This will be used for the subdomain and the Docker image tag.
+1.  Go to the [IAM & Admin > Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page in the Google Cloud Console.
+2.  Click on the service account used for GitHub Actions (e.g., `github-actions-builder@...`).
+3.  Go to the **Permissions** tab.
+4.  Click **Grant Access**.
+5.  In the **New principals** field, add the following line, replacing `<YOUR_GITHUB_ORG>/<YOUR_NEW_REPO_NAME>` with your repository's path:
+    ```
+    principalSet://[iam.googleapis.com/projects/](https://iam.googleapis.com/projects/)<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/attribute.repository/<YOUR_GITHUB_ORG>/<YOUR_NEW_REPO_NAME>
+    ```
+    *(You can find your Project Number on the GCP Console Dashboard).*
+6.  Assign the **Workload Identity User** role.
+7.  Click **Save**.
 
-        ```yaml
-        env:
-          # --- THIS IS THE ONLY LINE TO CHANGE FOR A NEW APP ---
-          APPNAME: my-cool-app
-        ```
+### Step 3: Configure the CI/CD Pipeline
 
-2.  **Update the Compose Template (`compose.yml.template`):**
-    * The placeholder `__APP_NAME__` is automatically replaced by the `APPNAME` from your workflow during deployment. You only need to edit this file if your application requires specific environment variables or other Docker Compose settings.
+Open the `.github/workflows/build-and-push.yml` file and update the `APPNAME` environment variable to the desired subdomain for your new app. For example:
+```yaml
+env:
+  # --- THE ONLY LINE TO CHANGE FOR A NEW APP ---
+  APPNAME: my-new-app
+```
 
-### Step 3: Add GitHub Secrets
+### Step 4: Add GitHub Secrets
 
 Go to your new repository's **Settings > Secrets and variables > Actions** and add the following secrets.
 
@@ -56,9 +56,11 @@ Go to your new repository's **Settings > Secrets and variables > Actions** and a
 * `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full path of the Workload Identity Provider from your GCP project.
 * `GH_PAT`: A GitHub Personal Access Token with `repo` scope, used to check out the private `gcp-server-config` repository.
 
-### Step 4: Develop and Deploy
+### Step 5: Develop and Deploy
+
+You are now ready to work on your application.
 
 1.  Replace the contents of `index.html` and the `Dockerfile` with your actual application code.
 2.  Commit and push your changes to the `main` branch.
 
-The GitHub Actions pipeline will automatically trigger and handle the entire deployment process.
+The GitHub Actions pipeline will automatically trigger, build your new image, provision the hostname, deploy your application.
