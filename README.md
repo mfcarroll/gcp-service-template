@@ -1,21 +1,14 @@
 # GCP Service Template
 
-This repository is a template for creating and deploying a containerized web application to the GCP server infrastructure. It includes a sample web page and a fully automated CI/CD pipeline using GitHub Actions.
+This repository is a template for deploying a containerized web application to a GCP server infrastructure managed by Ansible and Terraform.
 
-The pipeline will:
-1.  **Build** the application into a Docker image.
-2.  **Push** the image to a private Google Artifact Registry.
-3.  **Provision** a public-facing hostname in Cloudflare for the app.
-4.  **Deploy** the application to the server by triggering an Ansible playbook.
+The process is fully automated using a reusable GitHub Actions workflow. To deploy a new application, you only need to change **one line of code**.
 
-## How to Use This Template for a New App
-
-Follow these steps to create and deploy a new application based on this template.
+## How to Deploy a New App
 
 ### Step 1: Create the New Repository
-
-1.  Create a new repository on GitHub by using this one as a template.
-2.  Clone the new repository to your local machine.
+1.  Create a new repository on GitHub by selecting **"Use this template"**.
+2.  Clone your new repository to your local machine.
 
 ### Step 2: Grant GitHub Actions Access to GCP
 
@@ -34,33 +27,50 @@ Follow these steps to create and deploy a new application based on this template
 7.  Click **Save**.
 
 ### Step 3: Configure the CI/CD Pipeline
+The only change required is in the `.github/workflows/build-and-push.yml` file. Update the `appname` to your desired application name, which will also be used as its public subdomain.
 
-Open the `.github/workflows/build-and-push.yml` file and update the `APPNAME` environment variable to the desired subdomain for your new app. For example:
+For example, to deploy your app to `my-new-app.apps.matthewcarroll.ca`:
 ```yaml
-env:
-  # --- THE ONLY LINE TO CHANGE FOR A NEW APP ---
-  APPNAME: my-new-app
+name: Build, Push, and Deploy
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  call-reusable-workflow:
+    uses: mfcarroll/gcp-server-config/.github/workflows/reusable-deploy.yml@main
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    with:
+      appname: my-new-app # <-- CHANGE THIS LINE
+    secrets:
+      inherit
 ```
 
 ### Step 4: Add GitHub Secrets
+The reusable deployment workflow requires secrets to access your cloud providers. Go to your new repository's **Settings > Secrets and variables > Actions** and add the following secrets.
 
-Go to your new repository's **Settings > Secrets and variables > Actions** and add the following secrets.
+**Core Infrastructure Secrets:**
+* `SERVER_IP`: The public IP address of the application server.
+* `DOMAIN_NAME`: The root domain for your applications (e.g., `apps.mydomain.com`).
 
-* `ANSIBLE_SSH_PRIVATE_KEY`: The **contents** of the **passphrase-free** private SSH key (`~/.ssh/id_ed25519_cicd`) used for automated deployments.
+**Provider Credentials:**
+* `ANSIBLE_SSH_PRIVATE_KEY`: The private SSH key used to connect to the GCP server for deployments.
 * `ANSIBLE_VAULT_PASSWORD`: The password for the Ansible Vault in the `gcp-server-config` repository.
-* `CLOUDFLARE_API_TOKEN`: The Cloudflare API token with `Zone:SSL and Certificates:Edit`, `Zone:Zone:Read`, and `Zone:DNS:Edit` permissions.
+* `CLOUDFLARE_API_TOKEN`: Cloudflare API token with permissions to edit DNS and SSL settings.
 * `CLOUDFLARE_EMAIL`: The email address for your Cloudflare account.
-* `CLOUDFLARE_ZONE_ID`: The Zone ID for your `matthewcarroll.ca` domain.
-* `GCP_PROJECT_ID`: Your Google Cloud Project ID (e.g., `matthewc`).
-* `GCP_SERVICE_ACCOUNT`: The email address of the `github-actions-builder` service account.
+* `CLOUDFLARE_ZONE_ID`: The Zone ID for your domain from the Cloudflare dashboard.
+* `GCP_PROJECT_ID`: Your Google Cloud Project ID.
+* `GCP_SERVICE_ACCOUNT`: The email of the service account used for GitHub Actions authentication.
 * `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full path of the Workload Identity Provider from your GCP project.
 * `GH_PAT`: A GitHub Personal Access Token with `repo` scope, used to check out the private `gcp-server-config` repository.
 
 ### Step 5: Develop and Deploy
-
 You are now ready to work on your application.
 
-1.  Replace the contents of `index.html` and the `Dockerfile` with your actual application code.
+1.  Replace the contents of `index.html`, `Dockerfile`, and `compose.yml.template` with your actual application code.
 2.  Commit and push your changes to the `main` branch.
 
-The GitHub Actions pipeline will automatically trigger, build your new image, provision the hostname, deploy your application.
+The GitHub Actions pipeline will automatically trigger, build your image, provision the hostname, and deploy your application.

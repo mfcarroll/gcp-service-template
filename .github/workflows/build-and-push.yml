@@ -6,11 +6,12 @@ on:
 
 jobs:
   call-reusable-workflow:
-    uses: mfcarroll/gcp-server-config/.github/workflows/reusable-deploy.yml@main
+    uses: ${{ github.repository_owner }}/gcp-server-config/.github/workflows/reusable-deploy.yml@main
     permissions:
       contents: 'read'
       id-token: 'write'
     with:
+      # Add the name of your app here
       appname: template
     secrets:
       inherit
