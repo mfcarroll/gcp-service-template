@@ -38,6 +38,8 @@ jobs:
   provision-hostname:
     runs-on: ubuntu-latest
     needs: build
+    outputs:
+      hostname_exists: ${{ steps.check_hostname.outputs.exists }}
     steps:
       - name: Check if Custom Hostname exists
         id: check_hostname
@@ -49,14 +51,15 @@ jobs:
           
           if [ "$(echo $response | jq '.result | length')" -eq 0 ]; then
             echo "Hostname does not exist. Starting creation process."
-            echo "exists=false" >> $GITHUB_ENV
+            # CORRECTION 2: Use GITHUB_OUTPUT to set an output for this step
+            echo "exists=false" >> $GITHUB_OUTPUT
           else
             echo "Hostname already exists."
-            echo "exists=true" >> $GITHUB_ENV
+            echo "exists=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Custom Hostname and Validation Records
-        if: env.exists == 'false'
+        if: steps.check_hostname.outputs.exists == 'false'
         run: |
           HOSTNAME="${{ env.APPNAME }}.apps.matthewcarroll.ca"
           create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames" \
@@ -87,7 +90,7 @@ jobs:
             --data '{"type":"TXT","name":"'"$certval_name"'","content":"'"$certval_value"'","ttl":3600}'
 
       - name: Wait for Hostname to become Active
-        if: env.exists == 'false'
+        if: steps.check_hostname.outputs.exists == 'false'
         run: |
           HOSTNAME="${{ env.APPNAME }}.apps.matthewcarroll.ca"
           echo "Waiting for hostname to become active..."
@@ -112,12 +115,8 @@ jobs:
     steps:
       - name: Checkout service repo
         uses: actions/checkout@v4
-
-      # --- THIS IS THE FIX ---
       - name: Generate compose.yml from template
-        run: |
-          # Use sed to replace the placeholder with the APPNAME from the env
-          sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > compose.yml
+        run: sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > compose.yml
 
       - name: Copy compose config to server
         uses: appleboy/scp-action@master
@@ -125,10 +124,9 @@ jobs:
           host: 35.208.204.183
           username: dev
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
-          # The source is now the newly generated compose.yml
           source: "compose.yml"
-          target: "/opt/docker/services/${{ env.APPNAME }}.yml"
-      
+          target: "/home/dev/"
+
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
         with:
@@ -144,3 +142,5 @@ jobs:
           inventory: inventory
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
           vault_password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          options: |
+            --extra-vars "app_name=${{ env.APPNAME }}"

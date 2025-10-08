@@ -40,27 +40,25 @@ You only need to define your application's name in **one place**.
         ```
 
 2.  **Update the Compose Template (`compose.yml.template`):**
-    * This file uses a placeholder, `__APP_NAME__`, which is automatically replaced by the `APPNAME` from your workflow during deployment. You only need to edit this if your application requires specific environment variables or other Docker Compose settings.
+    * The placeholder `__APP_NAME__` is automatically replaced by the `APPNAME` from your workflow during deployment. You only need to edit this file if your application requires specific environment variables or other Docker Compose settings.
 
 ### Step 3: Add GitHub Secrets
 
-Go to your new repository's **Settings > Secrets and variables > Actions** and add the following secrets. These are required for the pipeline to authenticate with all the necessary services.
+Go to your new repository's **Settings > Secrets and variables > Actions** and add the following secrets.
 
-* `ANSIBLE_SSH_PRIVATE_KEY`: The **contents** of the private SSH key (`~/.ssh/id_ed25519_gcp`) used to connect to the GCP server.
+* `ANSIBLE_SSH_PRIVATE_KEY`: The **contents** of the **passphrase-free** private SSH key (`~/.ssh/id_ed25519_cicd`) used for automated deployments.
 * `ANSIBLE_VAULT_PASSWORD`: The password for the Ansible Vault in the `gcp-server-config` repository.
 * `CLOUDFLARE_API_TOKEN`: The Cloudflare API token with `Zone:SSL and Certificates:Edit`, `Zone:Zone:Read`, and `Zone:DNS:Edit` permissions.
 * `CLOUDFLARE_EMAIL`: The email address for your Cloudflare account.
-* `CLOUDFLARE_ZONE_ID`: The Zone ID for your `matthewcarroll.ca` domain (found on the Cloudflare dashboard's "Overview" page).
+* `CLOUDFLARE_ZONE_ID`: The Zone ID for your `matthewcarroll.ca` domain.
 * `GCP_PROJECT_ID`: Your Google Cloud Project ID (e.g., `matthewc`).
 * `GCP_SERVICE_ACCOUNT`: The email address of the `github-actions-builder` service account.
-* `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full path of the Workload Identity Provider from your GCP project (e.g., `projects/123.../providers/github-provider`).
+* `GCP_WORKLOAD_IDENTITY_PROVIDER`: The full path of the Workload Identity Provider from your GCP project.
 * `GH_PAT`: A GitHub Personal Access Token with `repo` scope, used to check out the private `gcp-server-config` repository.
 
 ### Step 4: Develop and Deploy
 
-You are now ready to work on your application.
-
 1.  Replace the contents of `index.html` and the `Dockerfile` with your actual application code.
 2.  Commit and push your changes to the `main` branch.
 
-The GitHub Actions pipeline will automatically trigger, build your image, provision the hostname, generate and copy your `compose.yml` to the server, and trigger the central Ansible playbook to deploy the changes.
+The GitHub Actions pipeline will automatically trigger and handle the entire deployment process.
