@@ -1,6 +1,0 @@
-services:
-  # The service name is based on the subdomain of the app
-  template-app:
-    # The image name is based on the repository name
-    image: us-central1-docker.pkg.dev/matthewc/app-images/gcp-service-template:latest
-    restart: unless-stopped

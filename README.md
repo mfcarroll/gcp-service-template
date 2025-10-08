@@ -10,8 +10,8 @@ The pipeline will:
 
 ## Repository Structure
 
-* **`.github/workflows/build-and-push.yml`**: The core CI/CD pipeline that automates the entire build and deployment process.
-* **`compose.yml`**: A Docker Compose file that defines how this specific application should run on the server.
+* **`.github/workflows/build-and-push.yml`**: The core CI/CD pipeline. **This is the main file you will edit.**
+* **`compose.yml.template`**: A template for the application's Docker Compose configuration. This is generated into the final `compose.yml` by the pipeline.
 * **`Dockerfile`**: Instructions for building the application into a Docker image.
 * **`index.html`**: The sample application code. Replace this with your own.
 
@@ -19,41 +19,28 @@ The pipeline will:
 
 ## How to Use This Template for a New App
 
-Follow these steps to create and deploy a new application. The key principle is that you will **only need to make changes within this new repository.**
+Follow these steps to create and deploy a new application. The key principle is that you only need to make changes within your new application's repository.
 
 ### Step 1: Create the New Repository
 
 1.  Create a new repository on GitHub using this one as a template.
-2.  Clone the new repository to your local machine. Let's assume the new repository is named `my-new-app`.
+2.  Clone the new repository to your local machine.
 
 ### Step 2: Configure Your New Application
 
-You need to update three key pieces of information to match your new app's name. Let's say your app's subdomain will be `new-app`.
+You only need to define your application's name in **one place**.
 
 1.  **Update the CI/CD Workflow (`.github/workflows/build-and-push.yml`):**
-    * Change the `HOSTNAME` environment variable to the desired public URL.
+    * Open this file and change the `APPNAME` environment variable to the desired name for your new application (e.g., `my-cool-app`). This will be used for the subdomain and the Docker image tag.
+
         ```yaml
         env:
-          HOSTNAME: new-app.apps.matthewcarroll.ca
-        ```
-    * Update the Docker image `tags` to match your new repository's name.
-        ```yaml
-        - name: Build and push Docker image
-          # ...
-          with:
-            # ...
-            tags: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-images/my-new-app:latest
+          # --- THIS IS THE ONLY LINE TO CHANGE FOR A NEW APP ---
+          APPNAME: my-cool-app
         ```
 
-2.  **Update the Docker Compose File (`compose.yml`):**
-    * The service name **must** follow the pattern `<subdomain>-app`.
-    * Update the `image` to match the tag from your workflow file.
-        ```yaml
-        services:
-          new-app-app:
-            image: us-central1-docker.pkg.dev/matthewc/app-images/my-new-app:latest
-            restart: unless-stopped
-        ```
+2.  **Update the Compose Template (`compose.yml.template`):**
+    * This file uses a placeholder, `__APP_NAME__`, which is automatically replaced by the `APPNAME` from your workflow during deployment. You only need to edit this if your application requires specific environment variables or other Docker Compose settings.
 
 ### Step 3: Add GitHub Secrets
 
@@ -76,4 +63,4 @@ You are now ready to work on your application.
 1.  Replace the contents of `index.html` and the `Dockerfile` with your actual application code.
 2.  Commit and push your changes to the `main` branch.
 
-The GitHub Actions pipeline will automatically trigger, build your new image, provision the hostname, copy your `compose.yml` to the server, and trigger the central Ansible playbook to deploy the changes.
+The GitHub Actions pipeline will automatically trigger, build your image, provision the hostname, generate and copy your `compose.yml` to the server, and trigger the central Ansible playbook to deploy the changes.

@@ -5,8 +5,9 @@ on:
     branches: [ "main" ]
 
 env:
-  # Define the hostname here to reuse it in multiple jobs
-  HOSTNAME: template.apps.matthewcarroll.ca
+  # --- THE ONLY LINE TO CHANGE FOR A NEW APP ---
+  # Define the unique name (and subdomain) for this application.
+  APPNAME: template
 
 jobs:
   build:
@@ -31,7 +32,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-images/gcp-service-template:latest
+          # The image tag is now correctly derived from just APPNAME
+          tags: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-images/${{ env.APPNAME }}:latest
 
   provision-hostname:
     runs-on: ubuntu-latest
@@ -40,7 +42,8 @@ jobs:
       - name: Check if Custom Hostname exists
         id: check_hostname
         run: |
-          response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames?hostname=${{ env.HOSTNAME }}" \
+          HOSTNAME="${{ env.APPNAME }}.apps.matthewcarroll.ca"
+          response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames?hostname=$HOSTNAME" \
             -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}")
           
@@ -55,22 +58,20 @@ jobs:
       - name: Create Custom Hostname and Validation Records
         if: env.exists == 'false'
         run: |
-          # 1. Create the Custom Hostname
+          HOSTNAME="${{ env.APPNAME }}.apps.matthewcarroll.ca"
           create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames" \
             -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            --data '{"hostname":"${{ env.HOSTNAME }}","ssl":{"method":"txt","type":"dv"}}')
+            --data '{"hostname":"'"$HOSTNAME"'","ssl":{"method":"txt","type":"dv"}}')
           
           hostname_id=$(echo $create_response | jq -r '.result.id')
           echo "Created hostname with ID: $hostname_id"
           
-          # 2. Wait and then get the full details, which includes both validation records
           sleep 10
           details_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames/${hostname_id}" \
             -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}")
 
-          # 3. Extract and create the Hostname Pre-validation Record
           preval_name=$(echo $details_response | jq -r '.result.ownership_verification.name')
           preval_value=$(echo $details_response | jq -r '.result.ownership_verification.value')
           curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
@@ -78,7 +79,6 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
             --data '{"type":"TXT","name":"'"$preval_name"'","content":"'"$preval_value"'","ttl":3600}'
 
-          # 4. Extract and create the Certificate Validation Record
           certval_name=$(echo $details_response | jq -r '.result.ssl.validation_records[0].txt_name')
           certval_value=$(echo $details_response | jq -r '.result.ssl.validation_records[0].txt_val')
           curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
@@ -89,9 +89,10 @@ jobs:
       - name: Wait for Hostname to become Active
         if: env.exists == 'false'
         run: |
+          HOSTNAME="${{ env.APPNAME }}.apps.matthewcarroll.ca"
           echo "Waiting for hostname to become active..."
           for i in {1..30}; do
-            status=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames?hostname=${{ env.HOSTNAME }}" \
+            status=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/custom_hostnames?hostname=$HOSTNAME" \
               -H "X-Auth-Email: ${{ secrets.CLOUDFLARE_EMAIL }}" \
               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" | jq -r '.result[0].status')
             
@@ -109,37 +110,36 @@ jobs:
     needs: provision-hostname
     runs-on: ubuntu-latest
     steps:
-      # --- NEW STEP ---
-      # Step 1: Check out the current (gcp-service-template) repository
       - name: Checkout service repo
         uses: actions/checkout@v4
 
-      # --- NEW STEP ---
-      # Step 2: Use SCP to copy the compose.yml file to the server
+      # --- THIS IS THE FIX ---
+      - name: Generate compose.yml from template
+        run: |
+          # Use sed to replace the placeholder with the APPNAME from the env
+          sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > compose.yml
+
       - name: Copy compose config to server
         uses: appleboy/scp-action@master
         with:
           host: 35.208.204.183
           username: dev
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          # The source is now the newly generated compose.yml
           source: "compose.yml"
-          # The destination uses the repo name to ensure a unique filename
-          target: "/opt/docker/services/${{ github.event.repository.name }}.yml"
-
-      # Step 3: Check out the Ansible config repo (as before)
+          target: "/opt/docker/services/${{ env.APPNAME }}.yml"
+      
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
         with:
           repository: mfcarroll/gcp-server-config
           token: ${{ secrets.GH_PAT }}
-          path: ansible-config # Check it out into a subdirectory
+          path: ansible-config
 
-      # Step 4: Run the Ansible Playbook (now from the subdirectory)
       - name: Run Ansible Playbook
         uses: dawidd6/action-ansible-playbook@v2
         with:
-          # Tell the action where the playbook is
-          directory: ansible-config
+          directory: ./ansible-config
           playbook: playbook.yml
           inventory: inventory
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}

@@ -1,0 +1,6 @@
+services:
+  # The service name will be replaced by the workflow
+  __APP_NAME__-app:
+    # The image name will also be replaced
+    image: us-central1-docker.pkg.dev/matthewc/app-images/__APP_NAME__:latest
+    restart: unless-stopped
