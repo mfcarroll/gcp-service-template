@@ -141,7 +141,7 @@ jobs:
       - name: Checkout service repo
         uses: actions/checkout@v4
       - name: Generate compose.yml from template
-        run: sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > compose.yml
+        run: sed "s/__APP_NAME__/${{ env.APPNAME }}/g" compose.yml.template > ${{ env.APPNAME }}.yml
 
       - name: Copy compose config to server
         uses: appleboy/scp-action@master
@@ -149,8 +149,8 @@ jobs:
           host: 35.208.204.183
           username: dev
           key: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
-          source: "compose.yml"
-          target: "/home/dev/${{ env.APPNAME }}.yml" 
+          source: "${{ env.APPNAME }}.yml"
+          target: "/home/dev/"
 
       - name: Checkout ansible config repo
         uses: actions/checkout@v4
