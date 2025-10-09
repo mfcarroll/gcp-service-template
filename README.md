@@ -74,3 +74,19 @@ You are now ready to work on your application.
 2.  Commit and push your changes to the `main` branch.
 
 The GitHub Actions pipeline will automatically trigger, build your image, provision the hostname, and deploy your application.
+
+## To reuse this configuration elsewhere
+
+1. Use the server-terraform repo to set up your server (needs to be checked out but does not have to be forked)
+
+https://github.com/mfcarroll/gcp-server-terraform
+
+2. Fork the server-config repos and configure ansible secrets. This repo now holds your specific server configuration, to be reused by all deployed apps.
+
+https://github.com/mfcarroll/gcp-server-config
+
+3. Fork the service-template repo and adjust `build-and-push.yml` to point back to your github account. This is now your template to use for deployment.
+
+https://github.com/mfcarroll/gcp-service-template/
+
+4. Make copies of your own service-template repo as needed to spin up apps.

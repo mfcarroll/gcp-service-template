@@ -6,7 +6,8 @@ on:
 
 jobs:
   call-reusable-workflow:
-    uses: ${{ github.repository_owner }}/gcp-server-config/.github/workflows/reusable-deploy.yml@main
+    # To resuse, update the github account below after forking the server-config repo
+    uses: mfcarroll/gcp-server-config/.github/workflows/reusable-deploy.yml@main
     permissions:
       contents: 'read'
       id-token: 'write'
