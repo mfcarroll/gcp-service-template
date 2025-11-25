@@ -16,11 +16,11 @@ The process is fully automated using a reusable GitHub Actions workflow. To depl
 
 1.  Go to the [IAM & Admin > Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page in the Google Cloud Console.
 2.  Click on the service account used for GitHub Actions (e.g., `github-actions-builder@...`).
-3.  Go to the **Permissions** tab.
+3.  Go to the **Principals with access** tab.
 4.  Click **Grant Access**.
 5.  In the **New principals** field, add the following line, replacing `<YOUR_GITHUB_ORG>/<YOUR_NEW_REPO_NAME>` with your repository's path:
     ```
-    principalSet://[iam.googleapis.com/projects/](https://iam.googleapis.com/projects/)<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/attribute.repository/<YOUR_GITHUB_ORG>/<YOUR_NEW_REPO_NAME>
+    principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/attribute.repository/<YOUR_GITHUB_ORG>/<YOUR_NEW_REPO_NAME>
     ```
     *(You can find your Project Number on the GCP Console Dashboard).*
 6.  Assign the **Workload Identity User** role.
