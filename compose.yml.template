@@ -4,3 +4,4 @@ services:
     # The image name will also be replaced
     image: us-central1-docker.pkg.dev/matthewc/app-images/__APP_NAME__:latest
     restart: unless-stopped
+    init: true
